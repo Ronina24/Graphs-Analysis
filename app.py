@@ -3,6 +3,7 @@ import networkx as nx
 from flask_cors import CORS
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+from scipy.spatial.distance import cosine
 
 
 app = Flask(__name__)
@@ -62,186 +63,122 @@ def statistics():
     return jsonify(response_data)
 
 
-# @app.route("/nosimilarity",methods=['POST'])
-# def similarity():
-#     data = request.get_json()
-#     print("***********")
-#     print(data)
-#     if not data or 'node_stats' not in data:
-#         return jsonify({"error": "Invalid input data"})
-
-#     node_stats = data['node_stats']
-#     selected_features = data['selected_features']
-
-#     # Extract the feature vectors based on the selected features
-#     feature_vectors = []
-#     node_ids = []
-
-#     for node in node_stats:
-#         node_ids.append(node['id'])
-#         feature_vector = []
-#         for feature in selected_features:
-#             feature_vector.append(node.get(feature, 0))
-#         feature_vectors.append(feature_vector)
-
-#     feature_matrix = np.array(feature_vectors)
-
-#     # Compute cosine similarity matrix
-#     similarity_matrix = cosine_similarity(feature_matrix)
-
-#     # Prepare similarity results
-#     similarity_results = []
-#     for i, node1 in enumerate(node_ids):
-#         for j, node2 in enumerate(node_ids):
-#             if i < j:  # Avoid duplicate pairs
-#                 similarity_results.append({
-#                     "node1": node1,
-#                     "node2": node2,
-#                     "similarity": round(similarity_matrix[i, j], 10)
-#                 })
-    
-#     print(jsonify({"similarity": similarity_results}))
-#     return jsonify({"similarity": similarity_results})
-
-
-def calculate_adjacency_matrix(node_stats):
-    # Construct the graph
-    G = nx.DiGraph()
-    for node_data in node_stats:
-        G.add_node(node_data['id'])
-
-    # Add edges to the graph
-    for node_data in node_stats:
-        node_id = node_data['id']
-        for edge_id in node_data.get('edges', []):
-            G.add_edge(node_id, edge_id)
-
-    # Compute adjacency matrix
-    adj_matrix = nx.adjacency_matrix(G).toarray()
-    return adj_matrix
-
-@app.route("/similarity",methods=['POST'])
-def similarity():
-    data = {
-    "node_stats": [
-        {
-            "id": "tooli0507",
-            "label": "tooli0507",
-            "title": "tooli0507",
-            "edges": ["yosishahbar", "Bry555555", "atikt73", "naftali90"]
-        },
-        {
-            "id": "yosishahbar",
-            "label": "yosishahbar",
-            "title": "yosishahbar",
-            "edges": ["tooli0507", "Bry555555", "atikt73", "naftali90"]
-        },
-        {
-            "id": "Bry555555",
-            "label": "Bry555555",
-            "title": "Bry555555",
-            "edges": ["tooli0507", "yosishahbar", "atikt73", "naftali90"]
-        },
-        {
-            "id": "atikt73",
-            "label": "atikt73",
-            "title": "atikt73",
-            "edges": ["tooli0507", "yosishahbar", "Bry555555", "naftali90"]
-        },
-        {
-            "id": "naftali90",
-            "label": "naftali90",
-            "title": "naftali90",
-            "edges": ["tooli0507", "yosishahbar", "Bry555555", "atikt73"]
-        },
-        {
-            "id": "es85134",
-            "label": "es85134",
-            "title": "es85134",
-            "edges": ["bond32722733", "yosi_shahbar", "prydmn6", "demokratya11"]
-        },
-        {
-            "id": "bond32722733",
-            "label": "bond32722733",
-            "title": "bond32722733",
-            "edges": ["es85134", "yosi_shahbar", "prydmn6", "demokratya11"]
-        },
-        {
-            "id": "yosi_shahbar",
-            "label": "yosi_shahbar",
-            "title": "yosi_shahbar",
-            "edges": ["es85134", "bond32722733", "prydmn6", "demokratya11"]
-        },
-        {
-            "id": "prydmn6",
-            "label": "prydmn6",
-            "title": "prydmn6",
-            "edges": ["es85134", "bond32722733", "yosi_shahbar", "demokratya11"]
-        },
-        {
-            "id": "demokratya11",
-            "label": "demokratya11",
-            "title": "demokratya11",
-            "edges": ["es85134", "bond32722733", "yosi_shahbar", "prydmn6"]
-        }
-    ],
-    "selected_features": []
+def extract_selected_features(graph, selected_features):
+    print("Extracting selected features from graph")
+    feature_functions = {
+        'degree_centrality': nx.degree_centrality,
+        'in_degree_centrality': nx.in_degree_centrality,
+        'out_degree_centrality': nx.out_degree_centrality,
+        'betweenness_centrality': nx.betweenness_centrality,
+        'closeness_centrality': nx.closeness_centrality,
+        'eigenvector_centrality': nx.eigenvector_centrality,
+        'clustering_coefficient': nx.clustering,
+        'pagerank': nx.pagerank
     }
 
-    print("***********")
-    print(data)
-    if not data or 'node_stats' not in data:
-        return jsonify({"error": "Invalid input data"})
+    features = {}
+    for node in graph.nodes():
+        feature_vector = []
+        for feature in selected_features:
+            if feature in feature_functions:
+                feature_value = feature_functions[feature](graph).get(node, 0)  # If the feature is not computed for a node, use 0
+                feature_vector.append(feature_value)
+        features[node] = feature_vector
+    
+    return features
 
-    node_stats = data['node_stats']
+@app.route("/similarity",methods=['POST'])
+def compute_similarity():
+    data = request.get_json()
+    print(data)
+    if not data or 'selected_features' not in data:
+        return jsonify({"error": "Invalid input data"}), 400
+    edges = data['graphData']['edges']
     selected_features = data['selected_features']
 
-    # Extract the feature vectors based on the selected features
-    if not selected_features:
-        # If no features are selected, calculate cosine similarity based on adjacency matrix
-        adj_matrix = calculate_adjacency_matrix(node_stats)
-        similarity_matrix = cosine_similarity(adj_matrix)
-    else:
-        # Extract feature vectors and compute cosine similarity
-        feature_matrix, node_ids = extract_feature_matrix(node_stats, selected_features)
-        similarity_matrix = cosine_similarity(feature_matrix)
+    # Create a single graph
+    original_graph = nx.DiGraph()
 
-    # Prepare similarity results
-    similarity_results = []
-    n = len(node_stats)
-    for i in range(n):
-        for j in range(i + 1, n):
-            similarity_results.append({
-                "node1": node_stats[i]['id'],
-                "node2": node_stats[j]['id'],
-                "similarity": round(similarity_matrix[i, j], 10)
+    for edge in edges:
+        from_node = edge['from']
+        to_node = edge['to']
+        original_graph.add_edge(from_node, to_node)
+
+    # Reverse the direction of edges to create the reverse graph
+    reverse_graph = original_graph.reverse()
+
+    # Extract selected features from the graph
+    features = extract_selected_features(original_graph, selected_features)
+
+    # Compute cosine similarity between nodes
+    nodes = list(features.keys())
+    num_nodes = len(nodes)
+    similarity_matrix = np.zeros((num_nodes, num_nodes))
+    for i in range(num_nodes):
+        for j in range(i + 1, num_nodes):
+            feature_vector_i = np.array(features[nodes[i]])
+            feature_vector_j = np.array(features[nodes[j]])
+            similarity = cosine_similarity([feature_vector_i], [feature_vector_j])[0][0]
+            similarity_matrix[i, j] = similarity
+            similarity_matrix[j, i] = similarity  # Cosine similarity is symmetric
+
+    similarity_list = []
+    for i in range(num_nodes):
+        for j in range(i + 1, num_nodes):
+            if i != j:
+                similarity_list.append({'node1': nodes[i], 'node2': nodes[j], 'similarity': similarity_matrix[i, j]})
+
+    return jsonify({'similarity_list': similarity_list})
+    
+
+    
+
+
+    
+   
+    
+
+
+
+
+@app.route("/adjacency",methods=['POST'])
+def adjacency():
+    G = nx.Graph()
+    data = request.get_json()
+    edges = data['edges']
+    for edge in edges:
+        G.add_edge(edge['from'], edge['to'])
+    
+    # Get the nodes in the graph and their indices
+    nodes = list(G.nodes())
+    node_indices = {node: i for i, node in enumerate(nodes)}
+    
+    # Initialize an empty adjacency matrix
+    adj_matrix = np.zeros((len(nodes), len(nodes)))
+    
+    # Fill the adjacency matrix based on the graph structure
+    for edge in edges:
+        from_node_index = node_indices[edge['from']]
+        to_node_index = node_indices[edge['to']]
+        adj_matrix[from_node_index][to_node_index] = 1
+        adj_matrix[to_node_index][from_node_index] = 1  # Since the graph is undirected, set symmetrically
+    
+    # Calculate cosine similarity between nodes
+    cosine_sim = cosine_similarity(adj_matrix)
+
+    # Prepare the response data
+    result = []
+    for i in range(len(nodes)):
+        for j in range(i+1, len(nodes)):  # Iterate over upper triangle of the matrix to avoid duplicate pairs
+            result.append({
+                "node1": nodes[i],
+                "node2": nodes[j],
+                "similarity": cosine_sim[i][j]
             })
+            print(type(cosine_sim[i][j]))
 
-    return jsonify({"similarity": similarity_results})
+    return jsonify({"cosine_similarity": result})
 
-def extract_feature_matrix(node_stats, selected_features):
-    feature_vectors = []
-    node_ids = []
-    for node in node_stats:
-        node_ids.append(node['id'])
-        feature_vector = [node.get(feature, 0) for feature in selected_features]
-        feature_vectors.append(feature_vector)
-
-    feature_matrix = np.array(feature_vectors)
-    return feature_matrix, node_ids
-
-
-def prepare_similarity_results(similarity_matrix, node_ids):
-    similarity_results = []
-    n = len(node_ids)
-    for i in range(n):
-        for j in range(i + 1, n):
-            similarity_results.append({
-                "node1": node_ids[i],
-                "node2": node_ids[j],
-                "similarity": round(similarity_matrix[i, j], 10)
-            })
-    return similarity_results
     
 if __name__ == "__main__":
     app.run()
