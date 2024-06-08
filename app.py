@@ -4,6 +4,7 @@ from flask_cors import CORS
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.spatial.distance import cosine
+from waitress import serve
 
 
 app = Flask(__name__)
@@ -16,7 +17,6 @@ def home():
 @app.route("/stats",methods=['POST'])
 def statistics():
     print("STATS")
-
     graphData = request.get_json()
     if not graphData['nodes'] or not graphData['edges']:
         return jsonify({"error": "Graph data is empty"})
@@ -43,7 +43,6 @@ def statistics():
     def format_value(value):
         return round(value,10) if value is not None else None
     response_data = []
-    print(G.nodes)
     for node in G.nodes:
         
         node_data = {
@@ -89,8 +88,8 @@ def extract_selected_features(graph, selected_features):
 
 @app.route("/similarity",methods=['POST'])
 def compute_similarity():
+    print("/similarity")
     data = request.get_json()
-    print(data)
     if not data or 'selected_features' not in data:
         return jsonify({"error": "Invalid input data"}), 400
     edges = data['graphData']['edges']
@@ -127,22 +126,14 @@ def compute_similarity():
         for j in range(i + 1, num_nodes):
             if i != j:
                 similarity_list.append({'node1': nodes[i], 'node2': nodes[j], 'similarity': similarity_matrix[i, j]})
-
     return jsonify({'similarity_list': similarity_list})
     
-
-    
-
-
-    
-   
-    
-
 
 
 
 @app.route("/adjacency",methods=['POST'])
 def adjacency():
+    print("/adjacency")
     G = nx.Graph()
     data = request.get_json()
     edges = data['edges']
@@ -175,10 +166,10 @@ def adjacency():
                 "node2": nodes[j],
                 "similarity": cosine_sim[i][j]
             })
-            print(type(cosine_sim[i][j]))
+
 
     return jsonify({"cosine_similarity": result})
 
     
 if __name__ == "__main__":
-    app.run()
+    serve(app.run(),port='8000')
