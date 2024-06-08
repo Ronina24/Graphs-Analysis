@@ -4,7 +4,6 @@ from flask_cors import CORS
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.spatial.distance import cosine
-from waitress import serve
 
 
 app = Flask(__name__)
@@ -172,4 +171,4 @@ def adjacency():
 
     
 if __name__ == "__main__":
-    serve(app.run(),port='8000')
+    app.run()
