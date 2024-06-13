@@ -35,11 +35,6 @@ def statistics():
     closeness_centrality = nx.closeness_centrality(G)
     clustering_coefficient = nx.clustering(G)
     page_rank = nx.pagerank(G)
-    try:
-        eccentricity = nx.eccentricity(G)
-    except nx.NetworkXError as e:
-        print("Error calculating eccentricity:", e)
-        eccentricity = {}
     def format_value(value):
         return round(value,10) if value is not None else None
     response_data = []
@@ -55,7 +50,6 @@ def statistics():
             "closeness_centrality": format_value(closeness_centrality.get(node, None)),
             "clustering_coefficient": format_value(clustering_coefficient.get(node, None)),
             "page_rank": format_value(page_rank.get(node, None)),
-            "eccentricity": format_value(eccentricity.get(node, None))
         }
         response_data.append(node_data)
     
@@ -70,7 +64,6 @@ def extract_selected_features(graph, selected_features):
         'out_degree_centrality': nx.out_degree_centrality,
         'betweenness_centrality': nx.betweenness_centrality,
         'closeness_centrality': nx.closeness_centrality,
-        'eigenvector_centrality': nx.eigenvector_centrality,
         'clustering_coefficient': nx.clustering,
         'pagerank': nx.pagerank
     }
