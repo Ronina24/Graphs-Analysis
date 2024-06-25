@@ -155,7 +155,8 @@ def adjacency():
     result = []
     for i in range(len(nodes)):
         for j in range(i+1, len(nodes)):  # Iterate over upper triangle of the matrix to avoid duplicate pairs
-            if cosine_sim[i][j] != 0:
+            similarity_value = cosine_sim[i][j]
+            if similarity_value != 0 and similarity_value != 1:
                 result.append({
                     "node1": nodes[i],
                     "node2": nodes[j],
