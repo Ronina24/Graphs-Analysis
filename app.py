@@ -119,7 +119,8 @@ def compute_similarity():
         for j in range(i + 1, num_nodes):
             if i != j:
                 similarity_list.append({'node1': nodes[i], 'node2': nodes[j], 'similarity': similarity_matrix[i, j]})
-    return jsonify({'similarity_list': similarity_list})
+    results = sorted(similarity_list, key=lambda x: x['similarity'], reverse=True)[:500]
+    return jsonify({'similarity_list': results})
     
 
 
@@ -154,14 +155,15 @@ def adjacency():
     result = []
     for i in range(len(nodes)):
         for j in range(i+1, len(nodes)):  # Iterate over upper triangle of the matrix to avoid duplicate pairs
-            result.append({
-                "node1": nodes[i],
-                "node2": nodes[j],
-                "similarity": cosine_sim[i][j]
-            })
+            if cosine_sim[i][j] != 0:
+                result.append({
+                    "node1": nodes[i],
+                    "node2": nodes[j],
+                    "similarity": cosine_sim[i][j]
+                })
 
-
-    return jsonify({"cosine_similarity": result})
+    similarity_list = sorted(result, key=lambda x: x['similarity'], reverse=True)[:500]
+    return jsonify({"cosine_similarity": similarity_list})
 
     
 if __name__ == "__main__":
