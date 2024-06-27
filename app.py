@@ -146,8 +146,7 @@ def adjacency():
         from_node_index = node_indices[edge['from']]
         to_node_index = node_indices[edge['to']]
         adj_matrix[from_node_index][to_node_index] = 1
-        adj_matrix[to_node_index][from_node_index] = 1  # Since the graph is undirected, set symmetrically
-    
+
     # Calculate cosine similarity between nodes
     cosine_sim = cosine_similarity(adj_matrix)
 
