@@ -162,7 +162,7 @@ def adjacency():
                     "similarity": cosine_sim[i][j]
                 })
 
-    similarity_list = sorted(result, key=lambda x: x['similarity'], reverse=True)[:500]
+    similarity_list = sorted(result, key=lambda x: x['similarity'])[:500]
     return jsonify({"cosine_similarity": similarity_list})
 
     
