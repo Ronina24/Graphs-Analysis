@@ -119,7 +119,7 @@ def compute_similarity():
         for j in range(i + 1, num_nodes):
             if i != j:
                 similarity_list.append({'node1': nodes[i], 'node2': nodes[j], 'similarity': similarity_matrix[i, j]})
-    results = sorted(similarity_list, key=lambda x: x['similarity'])[:1000]
+    results = sorted(similarity_list, key=lambda x: x['similarity'])
     return jsonify({'similarity_list': results})
 
 
