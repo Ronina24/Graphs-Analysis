@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.spatial.distance import cosine
 import os
-
+from multiprocessing import Pool
 
 app = Flask(__name__)
 CORS(app) 
@@ -55,7 +55,6 @@ def statistics():
     
     return jsonify(response_data)
 
-
 def extract_selected_features(graph, selected_features):
     print("Extracting selected features from graph")
     feature_functions = {
@@ -63,6 +62,7 @@ def extract_selected_features(graph, selected_features):
         'in_degree_centrality': nx.in_degree_centrality,
         'out_degree_centrality': nx.out_degree_centrality,
         'betweenness_centrality': nx.betweenness_centrality,
+        'eccentricity': nx.eccentricity,
         'closeness_centrality': nx.closeness_centrality,
         'clustering_coefficient': nx.clustering,
         'pagerank': nx.pagerank
@@ -76,10 +76,16 @@ def extract_selected_features(graph, selected_features):
                 feature_value = feature_functions[feature](graph).get(node, 0)  # If the feature is not computed for a node, use 0
                 feature_vector.append(feature_value)
         features[node] = feature_vector
-    
+
     return features
 
-@app.route("/similarity",methods=['POST'])
+def compute_similarity_worker(args):
+    feature_vector_i, feature_vector_j = args
+    if feature_vector_i.size == 0 or feature_vector_j.size == 0:
+        return 0
+    return cosine_similarity([feature_vector_i], [feature_vector_j])[0][0]
+
+@app.route("/similarity", methods=['POST'])
 def compute_similarity():
     print("/similarity")
     data = request.get_json()
@@ -90,36 +96,40 @@ def compute_similarity():
 
     # Create a single graph
     original_graph = nx.DiGraph()
-
     for edge in edges:
         from_node = edge['from']
         to_node = edge['to']
         original_graph.add_edge(from_node, to_node)
 
-    # Reverse the direction of edges to create the reverse graph
-    reverse_graph = original_graph.reverse()
-
     # Extract selected features from the graph
     features = extract_selected_features(original_graph, selected_features)
+    if not features:
+        return jsonify({"error": "No features available for computation"}), 400
 
     # Compute cosine similarity between nodes
     nodes = list(features.keys())
     num_nodes = len(nodes)
     similarity_matrix = np.zeros((num_nodes, num_nodes))
+
+    args_list = [(np.array(features[nodes[i]]), np.array(features[nodes[j]]))
+                 for i in range(num_nodes) for j in range(i + 1, num_nodes)]
+
+    with Pool() as pool:
+        similarities = pool.map(compute_similarity_worker, args_list)
+
+    k = 0
     for i in range(num_nodes):
         for j in range(i + 1, num_nodes):
-            feature_vector_i = np.array(features[nodes[i]])
-            feature_vector_j = np.array(features[nodes[j]])
-            similarity = cosine_similarity([feature_vector_i], [feature_vector_j])[0][0]
-            similarity_matrix[i, j] = similarity
-            similarity_matrix[j, i] = similarity  # Cosine similarity is symmetric
+            similarity_matrix[i, j] = similarities[k]
+            similarity_matrix[j, i] = similarities[k]
+            k += 1
 
     similarity_list = []
     for i in range(num_nodes):
         for j in range(i + 1, num_nodes):
             if i != j:
                 similarity_list.append({'node1': nodes[i], 'node2': nodes[j], 'similarity': similarity_matrix[i, j]})
-    results = sorted(similarity_list, key=lambda x: x['similarity'])
+    results = sorted(similarity_list, key=lambda x: x['similarity'], reverse=True)
     return jsonify({'similarity_list': results})
 
 
