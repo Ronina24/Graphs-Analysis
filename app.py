@@ -3,7 +3,7 @@ import networkx as nx
 from flask_cors import CORS
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import cosine
 import os
 
 
@@ -35,12 +35,6 @@ def statistics():
     closeness_centrality = nx.closeness_centrality(G)
     clustering_coefficient = nx.clustering(G)
     page_rank = nx.pagerank(G)
-
-    try:
-        eccentricity = nx.eccentricity(G)
-    except nx.NetworkXError:
-        eccentricity = {node: None for node in G.nodes}
-    
     def format_value(value):
         return round(value,10) if value is not None else None
     response_data = []
@@ -53,7 +47,6 @@ def statistics():
             "in_degree_centrality": format_value(in_degree_centrality.get(node, None)),
             "out_degree_centrality": format_value(out_degree_centrality.get(node, None)),
             "betweenness_centrality": format_value(betweenness_centrality.get(node, None)),
-            "eccentricity": format_value(eccentricity.get(node, None)),
             "closeness_centrality": format_value(closeness_centrality.get(node, None)),
             "clustering_coefficient": format_value(clustering_coefficient.get(node, None)),
             "page_rank": format_value(page_rank.get(node, None)),
@@ -70,7 +63,6 @@ def extract_selected_features(graph, selected_features):
         'in_degree_centrality': nx.in_degree_centrality,
         'out_degree_centrality': nx.out_degree_centrality,
         'betweenness_centrality': nx.betweenness_centrality,
-        'eccentricity': nx.eccentricity,
         'closeness_centrality': nx.closeness_centrality,
         'clustering_coefficient': nx.clustering,
         'pagerank': nx.pagerank
@@ -81,16 +73,13 @@ def extract_selected_features(graph, selected_features):
         feature_vector = []
         for feature in selected_features:
             if feature in feature_functions:
-                try:
-                    feature_value = feature_functions[feature](graph).get(node, 0)
-                except nx.NetworkXError:
-                    feature_value = 0
+                feature_value = feature_functions[feature](graph).get(node, 0)  # If the feature is not computed for a node, use 0
                 feature_vector.append(feature_value)
         features[node] = feature_vector
     
     return features
 
-@app.route("/similarity", methods=['POST'])
+@app.route("/similarity",methods=['POST'])
 def compute_similarity():
     print("/similarity")
     data = request.get_json()
@@ -99,29 +88,38 @@ def compute_similarity():
     edges = data['graphData']['edges']
     selected_features = data['selected_features']
 
+    # Create a single graph
     original_graph = nx.DiGraph()
+
     for edge in edges:
-        original_graph.add_edge(edge['from'], edge['to'])
+        from_node = edge['from']
+        to_node = edge['to']
+        original_graph.add_edge(from_node, to_node)
 
+    # Reverse the direction of edges to create the reverse graph
+    reverse_graph = original_graph.reverse()
+
+    # Extract selected features from the graph
     features = extract_selected_features(original_graph, selected_features)
-    if not features:
-        return jsonify({"error": "No features available for computation"}), 400
 
+    # Compute cosine similarity between nodes
     nodes = list(features.keys())
     num_nodes = len(nodes)
-    feature_vectors = np.array(list(features.values()))
+    similarity_matrix = np.zeros((num_nodes, num_nodes))
+    for i in range(num_nodes):
+        for j in range(i + 1, num_nodes):
+            feature_vector_i = np.array(features[nodes[i]])
+            feature_vector_j = np.array(features[nodes[j]])
+            similarity = cosine_similarity([feature_vector_i], [feature_vector_j])[0][0]
+            similarity_matrix[i, j] = similarity
+            similarity_matrix[j, i] = similarity  # Cosine similarity is symmetric
 
-    # Using scipy's cdist for efficient computation
-    distance_matrix = cdist(feature_vectors, feature_vectors, metric='cosine')
-    similarity_matrix = 1 - distance_matrix  # Since cosine similarity ranges from 0 to 1
-
-    # Flatten the similarity matrix and create a list of tuples for sorting
-    flattened_similarities = [(i, j, similarity_matrix[i, j]) for i in range(num_nodes) for j in range(i+1, num_nodes)]
-    similarities_sorted = sorted(flattened_similarities, key=lambda x: x[2])
-
-    # Convert sorted tuples back to dictionary format
-    results = [{'node1': nodes[i], 'node2': nodes[j], 'similarity': similarity} for i, j, similarity in similarities_sorted]
-
+    similarity_list = []
+    for i in range(num_nodes):
+        for j in range(i + 1, num_nodes):
+            if i != j:
+                similarity_list.append({'node1': nodes[i], 'node2': nodes[j], 'similarity': similarity_matrix[i, j]})
+    results = sorted(similarity_list, key=lambda x: x['similarity'])
     return jsonify({'similarity_list': results})
 
 
@@ -153,7 +151,7 @@ def adjacency():
     # Prepare the response data
     result = []
     for i in range(len(nodes)):
-        for j in range(i+1, len(nodes)): 
+        for j in range(i+1, len(nodes)):  # Iterate over upper triangle of the matrix to avoid duplicate pairs
             similarity_value = cosine_sim[i][j]
             if similarity_value != 0:
                 result.append({
