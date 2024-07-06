@@ -3,7 +3,7 @@ import networkx as nx
 from flask_cors import CORS
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from scipy.spatial.distance import cosine
+from scipy.spatial.distance import cdist
 import os
 
 
@@ -90,7 +90,7 @@ def extract_selected_features(graph, selected_features):
     
     return features
 
-@app.route("/similarity",methods=['POST'])
+@app.route("/similarity", methods=['POST'])
 def compute_similarity():
     print("/similarity")
     data = request.get_json()
@@ -99,40 +99,29 @@ def compute_similarity():
     edges = data['graphData']['edges']
     selected_features = data['selected_features']
 
-    # Create a single graph
     original_graph = nx.DiGraph()
-
     for edge in edges:
-        from_node = edge['from']
-        to_node = edge['to']
-        original_graph.add_edge(from_node, to_node)
+        original_graph.add_edge(edge['from'], edge['to'])
 
-    # Extract selected features from the graph
     features = extract_selected_features(original_graph, selected_features)
     if not features:
         return jsonify({"error": "No features available for computation"}), 400
 
-    # Compute cosine similarity between nodes
     nodes = list(features.keys())
     num_nodes = len(nodes)
-    similarity_matrix = np.zeros((num_nodes, num_nodes))
-    for i in range(num_nodes):
-        for j in range(i + 1, num_nodes):
-            feature_vector_i = np.array(features[nodes[i]])
-            feature_vector_j = np.array(features[nodes[j]])
-            if feature_vector_i.size == 0 or feature_vector_j.size == 0:
-                similarity = 0
-            else:
-                similarity = cosine_similarity([feature_vector_i], [feature_vector_j])[0][0]
-            similarity_matrix[i, j] = similarity
-            similarity_matrix[j, i] = similarity  # Cosine similarity is symmetric
+    feature_vectors = np.array(list(features.values()))
 
-    similarity_list = []
-    for i in range(num_nodes):
-        for j in range(i + 1, num_nodes):
-            if i != j:
-                similarity_list.append({'node1': nodes[i], 'node2': nodes[j], 'similarity': similarity_matrix[i, j]})
-    results = sorted(similarity_list, key=lambda x: x['similarity'])
+    # Using scipy's cdist for efficient computation
+    distance_matrix = cdist(feature_vectors, feature_vectors, metric='cosine')
+    similarity_matrix = 1 - distance_matrix  # Since cosine similarity ranges from 0 to 1
+
+    # Flatten the similarity matrix and create a list of tuples for sorting
+    flattened_similarities = [(i, j, similarity_matrix[i, j]) for i in range(num_nodes) for j in range(i+1, num_nodes)]
+    similarities_sorted = sorted(flattened_similarities, key=lambda x: x[2])
+
+    # Convert sorted tuples back to dictionary format
+    results = [{'node1': nodes[i], 'node2': nodes[j], 'similarity': similarity} for i, j, similarity in similarities_sorted]
+
     return jsonify({'similarity_list': results})
 
 
