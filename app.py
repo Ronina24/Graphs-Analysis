@@ -32,10 +32,15 @@ def statistics():
     in_degree_centrality = nx.in_degree_centrality(G)
     out_degree_centrality = nx.out_degree_centrality(G)
     betweenness_centrality = nx.betweenness_centrality(G)
-    eccentricity = nx.eccentricity(G)
     closeness_centrality = nx.closeness_centrality(G)
     clustering_coefficient = nx.clustering(G)
     page_rank = nx.pagerank(G)
+
+    try:
+        eccentricity = nx.eccentricity(G)
+    except nx.NetworkXError:
+        eccentricity = {node: None for node in G.nodes}
+    
     def format_value(value):
         return round(value,10) if value is not None else None
     response_data = []
@@ -76,7 +81,10 @@ def extract_selected_features(graph, selected_features):
         feature_vector = []
         for feature in selected_features:
             if feature in feature_functions:
-                feature_value = feature_functions[feature](graph).get(node, 0)  # If the feature is not computed for a node, use 0
+                try:
+                    feature_value = feature_functions[feature](graph).get(node, 0)
+                except nx.NetworkXError:
+                    feature_value = 0
                 feature_vector.append(feature_value)
         features[node] = feature_vector
     
@@ -99,11 +107,10 @@ def compute_similarity():
         to_node = edge['to']
         original_graph.add_edge(from_node, to_node)
 
-    # Reverse the direction of edges to create the reverse graph
-    reverse_graph = original_graph.reverse()
-
     # Extract selected features from the graph
     features = extract_selected_features(original_graph, selected_features)
+    if not features:
+        return jsonify({"error": "No features available for computation"}), 400
 
     # Compute cosine similarity between nodes
     nodes = list(features.keys())
@@ -113,7 +120,10 @@ def compute_similarity():
         for j in range(i + 1, num_nodes):
             feature_vector_i = np.array(features[nodes[i]])
             feature_vector_j = np.array(features[nodes[j]])
-            similarity = cosine_similarity([feature_vector_i], [feature_vector_j])[0][0]
+            if feature_vector_i.size == 0 or feature_vector_j.size == 0:
+                similarity = 0
+            else:
+                similarity = cosine_similarity([feature_vector_i], [feature_vector_j])[0][0]
             similarity_matrix[i, j] = similarity
             similarity_matrix[j, i] = similarity  # Cosine similarity is symmetric
 
@@ -154,7 +164,7 @@ def adjacency():
     # Prepare the response data
     result = []
     for i in range(len(nodes)):
-        for j in range(i+1, len(nodes)):  # Iterate over upper triangle of the matrix to avoid duplicate pairs
+        for j in range(i+1, len(nodes)): 
             similarity_value = cosine_sim[i][j]
             if similarity_value != 0:
                 result.append({
