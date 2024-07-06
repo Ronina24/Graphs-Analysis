@@ -32,6 +32,7 @@ def statistics():
     in_degree_centrality = nx.in_degree_centrality(G)
     out_degree_centrality = nx.out_degree_centrality(G)
     betweenness_centrality = nx.betweenness_centrality(G)
+    eccentricity = nx.eccentricity(G)
     closeness_centrality = nx.closeness_centrality(G)
     clustering_coefficient = nx.clustering(G)
     page_rank = nx.pagerank(G)
@@ -47,6 +48,7 @@ def statistics():
             "in_degree_centrality": format_value(in_degree_centrality.get(node, None)),
             "out_degree_centrality": format_value(out_degree_centrality.get(node, None)),
             "betweenness_centrality": format_value(betweenness_centrality.get(node, None)),
+            "eccentricity": format_value(eccentricity.get(node, None)),
             "closeness_centrality": format_value(closeness_centrality.get(node, None)),
             "clustering_coefficient": format_value(clustering_coefficient.get(node, None)),
             "page_rank": format_value(page_rank.get(node, None)),
@@ -63,6 +65,7 @@ def extract_selected_features(graph, selected_features):
         'in_degree_centrality': nx.in_degree_centrality,
         'out_degree_centrality': nx.out_degree_centrality,
         'betweenness_centrality': nx.betweenness_centrality,
+        'eccentricity': nx.eccentricity,
         'closeness_centrality': nx.closeness_centrality,
         'clustering_coefficient': nx.clustering,
         'pagerank': nx.pagerank
